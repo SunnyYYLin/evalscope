@@ -34,7 +34,8 @@ logger = get_logger()
     few_shot_num=0,
     train_split=None,
     eval_split='test_cn',
-    prompt_template='以下是中国{subfield}竞赛中的解答题{question}\n{answer_type_text}。请根据题目的要求和所提供的信息计算得出答案。解答过程和结果中使用的变量和公式请使用LaTeX格式表示。请在最后以“所以最终答案是{multiple_answer_text}。”显式给出结果{unit_text}。'
+    prompt_template='{query}',
+    query_template='以下是中国{subfield}竞赛中的解答题{answer_type_text}。请根据题目的要求和所提供的信息计算得出答案。解答过程和结果中使用的变量和公式请使用LaTeX格式表示。请在最后以“所以最终答案是{multiple_answer_text}。”显式给出结果{unit_text}。\n{content}\n{question}'
 )
 class OlympiadBenchAdapter(DataAdapter):
 
@@ -61,24 +62,36 @@ class OlympiadBenchAdapter(DataAdapter):
         """
         Generate the prompt for the model input.
         """
-        subject_content = input_d['subfield']
-        if input_d['is_multiple_answer']:
-            multiple_answer_text = '\\boxed{用英文逗号连接的多个答案}'
-        else:
-            multiple_answer_text = '\\boxed{答案}'
-        unit_text = ''
-        if input_d['unit']:
-            multiple_answer_text += '(单位)'
-            unit_text = '，注意答案的单位不要放在\\boxed{}中'
-        answer_type_text = self._get_answer_type_text(input_d)
-        question = str(input_d['context']) + '\n' + input_d['question']
+        format_content: dict[str, str] = {}
+        if r'{subfield}' in self.query_template:
+            format_content['subfield'] = input_d['subfield']
+
+        if r'{multiple_answer_text}' in self.query_template:
+            if input_d['is_multiple_answer']:
+                multiple_answer_text = '\\boxed{用英文逗号连接的多个答案}'
+            else:
+                multiple_answer_text = '\\boxed{答案}'
+            format_content['multiple_answer_text'] = multiple_answer_text
         
+        if r'{unit_text}' in self.query_template:    
+            unit_text = ''
+            if input_d['unit']:
+                multiple_answer_text += '(单位)'
+                unit_text = '，注意答案的单位不要放在\\boxed{}中'
+            format_content['unit_text'] = unit_text
+        
+        if r'{answer_type_text}' in self.query_template:
+            answer_type_text = self._get_answer_type_text(input_d)
+            format_content['answer_type_text'] = answer_type_text
+        
+        if r'{context}' in self.query_template:
+            format_content['context'] = str(input_d['context'])
+            
+        format_content['question'] = input_d['question']
+        
+        query = self.query_template.format(**format_content)
         full_prompt = self.prompt_template.format(
-            subfield=subject_content,
-            question=question,
-            answer_type_text=answer_type_text,
-            multiple_answer_text=multiple_answer_text,
-            unit_text=unit_text
+            query=query
         )
         
         return self.gen_prompt_data(full_prompt)

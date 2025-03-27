@@ -8,7 +8,7 @@ from evalscope.models import ChatGenerationModelAdapter
 logger = get_logger()
 
 @Benchmark.register(
-    name='amc',
+    name='amc23',
     pretty_name='AMC',
     dataset_id='AI-MO/aimo-validation-amc',
     model_adapter=ChatGenerationModelAdapter,
@@ -18,7 +18,8 @@ logger = get_logger()
     eval_split='train',
     prompt_template='{query}\nPlease reason step by step, and put your final answer within \\boxed{{}}.',
 )
-class Math500Adapter(DataAdapter):
+
+class AMC23Adapter(DataAdapter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

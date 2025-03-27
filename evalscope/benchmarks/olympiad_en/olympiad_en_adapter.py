@@ -34,7 +34,8 @@ logger = get_logger()
     few_shot_num=0,
     train_split=None,
     eval_split='test_en',
-    prompt_template='The following is an open-ended problem from an International {subfield} competition. {question}\n{answer_type_text}Please calculate the answer according to the given requirements and the information provided. Please use LaTeX format to represent the variables and formulas used in the solution process and results. Please end your solution with "So the final answer is {multiple_answer_text}." and give the result explicitly{unit_text}.'
+    prompt_template='{query}',
+    query_template='The following is an open-ended problem from an International {subfield} competition. {answer_type_text}Please calculate the answer according to the given requirements and the information provided. Please use LaTeX format to represent the variables and formulas used in the solution process and results. Please end your solution with "So the final answer is {multiple_answer_text}." and give the result explicitly{unit_text}. \n{context}\n{question}'
 )
 class OlympiadBenchAdapter(DataAdapter):
 
@@ -61,24 +62,36 @@ class OlympiadBenchAdapter(DataAdapter):
         """
         Generate the prompt for the model input.
         """
-        subject_content = input_d['subfield']
-        if input_d['is_multiple_answer']:
-            multiple_answer_text = '\\boxed{multiple answers connected with commas}'
-        else:
-            multiple_answer_text = '\\boxed{answer}'
-        unit_text = ''
-        if input_d['unit']:
-            multiple_answer_text += '(unit)'
-            unit_text = ', note that the unit of the answer should not be included in \\boxed{}'
-        answer_type_text = self._get_answer_type_text(input_d)
-        question = str(input_d['context']) + '\n' + input_d['question']
+        format_content: dict[str, str] = {}
+        if r'{subfield}' in self.query_template:
+            format_content['subfield'] = input_d['subfield']
+
+        if r'{multiple_answer_text}' in self.query_template:
+            if input_d['is_multiple_answer']:
+                multiple_answer_text = '\\boxed{multiple answers connected with commas}'
+            else:
+                multiple_answer_text = '\\boxed{answer}'
+            format_content['multiple_answer_text'] = multiple_answer_text
+                
+        if r'{unit_text}' in self.query_template:
+            unit_text = ''
+            if input_d['unit']:
+                multiple_answer_text += '(unit)'
+                unit_text = ', note that the unit of the answer should not be included in \\boxed{}'
+            format_content['unit_text'] = unit_text
         
+        if r'{answer_type_text}' in self.query_template:
+            answer_type_text = self._get_answer_type_text(input_d)
+            format_content['answer_type_text'] = answer_type_text
+            
+        if r'{context}' in self.query_template:
+            format_content['context'] = str(input_d['context'])
+            
+        format_content['question'] = input_d['question']
+            
+        query = self.query_template.format(**format_content)
         full_prompt = self.prompt_template.format(
-            subfield=subject_content,
-            question=question,
-            answer_type_text=answer_type_text,
-            multiple_answer_text=multiple_answer_text,
-            unit_text=unit_text
+            query=query
         )
         
         return self.gen_prompt_data(full_prompt)
